@@ -32,8 +32,6 @@ interface CompressionResult {
   method: string;
   processingTime: number;
   downloadUrl: string;
-  compressedImageData?: string;
-  contentType?: string;
   analysis?: {
     psnr?: number;
     ssim?: number;
@@ -299,7 +297,7 @@ const ResultsDisplay: React.FC<{
   result: CompressionResult;
   originalFile: File;
   onDownload: () => void;
-}> = ({ result, onDownload }) => {
+}> = ({ result, originalFile, onDownload }) => {
   const compressionPercent = ((result.originalSize - result.compressedSize) / result.originalSize * 100);
   
   return (
@@ -391,7 +389,7 @@ export default function Home() {
     formData.append('image', file);
 
     try {
-      const response = await fetch('http://localhost:5001/api/analyze', {
+      const response = await fetch('http://localhost:5000/api/analyze', {
         method: 'POST',
         body: formData
       });
@@ -432,7 +430,7 @@ export default function Home() {
       }
       formData.append('enableAnalysis', compressionOptions.enableAnalysis.toString());
 
-      const response = await fetch('http://localhost:5174/api/ImageCompression/compress', {
+      const response = await fetch('http://localhost:5239/api/compression/compress', {
         method: 'POST',
         body: formData
       });
@@ -454,28 +452,22 @@ export default function Home() {
   };
 
   const downloadCompressedImage = async () => {
-    if (!result || !result.compressedImageData) return;
+    if (!result) return;
 
     try {
-      // Convert base64 to blob
-      const byteCharacters = atob(result.compressedImageData);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'image/jpeg' });
-      
+      const response = await fetch(`http://localhost:5239/api/compression/download/${result.id}`);
+      if (!response.ok) throw new Error('Failed to download');
+
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `compressed_${selectedFile?.name || 'image.jpg'}`;
+      a.download = `compressed_${selectedFile?.name || 'image'}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch (err) {
-      console.error('Download error:', err);
+    } catch (error) {
       setError('Failed to download compressed image');
     }
   };
